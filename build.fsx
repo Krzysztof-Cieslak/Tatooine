@@ -2,69 +2,41 @@
 // FAKE build script
 // --------------------------------------------------------------------------------------
 
-#r "./packages/build/FAKE/tools/FakeLib.dll"
+#r "paket: groupref build //"
+#load ".fake/build.fsx/intellisense.fsx"
 
-open Fake
-open System
+open Fake.Core
+open Fake.DotNet
+open Fake.IO
+open Fake.Core.TargetOperators
 
 // --------------------------------------------------------------------------------------
 // Build variables
 // --------------------------------------------------------------------------------------
 
 let buildDir  = "./build/"
-let appReferences = !! "/**/*.fsproj"
-let dotnetcliVersion = "2.1.300"
-let mutable dotnetExePath = "dotnet"
-
-// --------------------------------------------------------------------------------------
-// Helpers
-// --------------------------------------------------------------------------------------
-
-let run' timeout cmd args dir =
-    if execProcess (fun info ->
-        info.FileName <- cmd
-        if not (String.IsNullOrWhiteSpace dir) then
-            info.WorkingDirectory <- dir
-        info.Arguments <- args
-    ) timeout |> not then
-        failwithf "Error while running '%s' with args: %s" cmd args
-
-let run = run' System.TimeSpan.MaxValue
-
-let runDotnet workingDir args =
-    let result =
-        ExecProcess (fun info ->
-            info.FileName <- dotnetExePath
-            info.WorkingDirectory <- workingDir
-            info.Arguments <- args) TimeSpan.MaxValue
-    if result <> 0 then failwithf "dotnet %s failed" args
+let dotnetcliVersion = "2.1.302"
 
 // --------------------------------------------------------------------------------------
 // Targets
 // --------------------------------------------------------------------------------------
 
-Target "Clean" (fun _ ->
-    CleanDirs [buildDir]
+Target.create "Clean" (fun _ ->
+    Shell.cleanDirs [buildDir]
 )
 
-Target "InstallDotNetCLI" (fun _ ->
-    dotnetExePath <- DotNetCli.InstallDotNetSDK dotnetcliVersion
-)
-
-Target "Restore" (fun _ ->
-    appReferences
-    |> Seq.iter (fun p ->
-        let dir = System.IO.Path.GetDirectoryName p
-        runDotnet dir "restore"
+Target.create "InstallDotNetCLI" (fun _ ->
+    let version = DotNet.CliVersion.Version dotnetcliVersion
+    let options = DotNet.Options.Create()
+    DotNet.install (fun opts -> { opts with Version = version }) options |> ignore
     )
+
+Target.create "Restore" (fun _ ->
+    DotNet.restore id ""
 )
 
-Target "Build" (fun _ ->
-    appReferences
-    |> Seq.iter (fun p ->
-        let dir = System.IO.Path.GetDirectoryName p
-        runDotnet dir "build"
-    )
+Target.create "Build" (fun _ ->
+    DotNet.build id ""
 )
 
 // --------------------------------------------------------------------------------------
@@ -76,4 +48,4 @@ Target "Build" (fun _ ->
   ==> "Restore"
   ==> "Build"
 
-RunTargetOrDefault "Build"
+Target.runOrDefault "Build"
